@@ -9,7 +9,7 @@
     "start:api": "cd apps/api && npm run start",
     "start:web": "cd apps/web && npm run start",
     "build": "cd packages/shared && npm run build && cd ../../apps/api && npm run build && cd ../web && npm run build",
-    "build:api": "cd packages/shared && npm run build && cd ../../apps/api && npm run build",
+    "build:api": "npm install && cd packages/shared && npm run build && cd ../../apps/api && npm run build",
     "build:web": "cd apps/web && npm run build",
     "db:push": "cd prisma && npx prisma db push",
     "db:seed": "cd prisma && npx ts-node --project tsconfig.json seed.ts"

@@ -4,7 +4,7 @@
   "description": "CavPulse NestJS API",
   "private": true,
   "scripts": {
-    "build": "prisma generate --schema=../../prisma/schema.prisma && nest build",
+    "build": "npx prisma generate --schema=../../prisma/schema.prisma && npx nest build",
     "dev": "nest start --watch",
     "start": "node dist/main",
     "lint": "eslint src --ext .ts",
