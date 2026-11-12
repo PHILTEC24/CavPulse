@@ -1,0 +1,507 @@
+// =============================================================================
+// CavPulse Prisma Schema
+// Cavendish University Uganda - Intelligent Attendance Management System
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ACADEMIC_ADMIN
+  HEAD_OF_DEPARTMENT
+  LECTURER
+  STUDENT
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+  PENDING
+}
+
+enum AttendanceMethod {
+  QR_CODE
+  MANUAL
+  CORRECTION
+}
+
+enum LectureSessionStatus {
+  SCHEDULED
+  ACTIVE
+  CLOSED
+  CANCELLED
+  MISSED
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum NotificationType {
+  ATTENDANCE_RECORDED
+  LOW_ATTENDANCE_ALERT
+  SESSION_STARTED
+  SESSION_CLOSED
+  CORRECTION_REQUESTED
+  CORRECTION_APPROVED
+  CORRECTION_REJECTED
+  GENERAL
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum CorrectionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ─── User & Auth ──────────────────────────────────────────────────────────────
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  password        String
+  firstName       String
+  lastName        String
+  role            UserRole
+  isActive        Boolean  @default(true)
+  phone           String?
+  avatarUrl       String?
+  emailVerifiedAt DateTime?
+  lastLoginAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  studentProfile    StudentProfile?
+  lecturerProfile   LecturerProfile?
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+  refreshTokens     RefreshToken[]
+  verifiedRecords   AttendanceRecord[]    @relation("VerifiedBy")
+  correctionReviews CorrectionRequest[]   @relation("ReviewedBy")
+  departmentsLed    Department[]          @relation("HoD")
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  isRevoked Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── Academic Structure ───────────────────────────────────────────────────────
+
+model Faculty {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  code        String       @unique
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  departments Department[]
+
+  @@index([code])
+  @@map("faculties")
+}
+
+model Department {
+  id                String   @id @default(cuid())
+  name              String
+  code              String   @unique
+  facultyId         String
+  faculty           Faculty  @relation(fields: [facultyId], references: [id])
+  headOfDepartmentId String?
+  headOfDepartment  User?    @relation("HoD", fields: [headOfDepartmentId], references: [id])
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  programmes        Programme[]
+  lecturers         LecturerProfile[]
+  courses           Course[]
+  attendancePolicies AttendancePolicy[]
+
+  @@index([code])
+  @@index([facultyId])
+  @@map("departments")
+}
+
+model Programme {
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique
+  departmentId  String
+  department    Department @relation(fields: [departmentId], references: [id])
+  durationYears Int
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  students StudentProfile[]
+
+  @@index([code])
+  @@index([departmentId])
+  @@map("programmes")
+}
+
+// ─── Academic Calendar ────────────────────────────────────────────────────────
+
+model AcademicYear {
+  id        String     @id @default(cuid())
+  name      String     @unique // e.g. "2024/2025"
+  startDate DateTime
+  endDate   DateTime
+  isCurrent Boolean    @default(false)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  semesters Semester[]
+
+  @@index([isCurrent])
+  @@map("academic_years")
+}
+
+model Semester {
+  id              String       @id @default(cuid())
+  name            String       // e.g. "Semester 1"
+  academicYearId  String
+  academicYear    AcademicYear @relation(fields: [academicYearId], references: [id])
+  semesterNumber  Int          // 1 or 2
+  startDate       DateTime
+  endDate         DateTime
+  isCurrent       Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  courseAssignments CourseAssignment[]
+
+  @@unique([academicYearId, semesterNumber])
+  @@index([isCurrent])
+  @@map("semesters")
+}
+
+// ─── Courses & Assignments ────────────────────────────────────────────────────
+
+model Course {
+  id           String     @id @default(cuid())
+  code         String     @unique
+  name         String
+  credits      Int        @default(3)
+  yearLevel    Int        @default(1) // Year 1, 2, 3, 4
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  description  String?
+  isActive     Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  assignments CourseAssignment[]
+
+  @@index([code])
+  @@index([departmentId])
+  @@map("courses")
+}
+
+model CourseAssignment {
+  id         String   @id @default(cuid())
+  courseId   String
+  course     Course   @relation(fields: [courseId], references: [id])
+  lecturerId String
+  lecturer   LecturerProfile @relation(fields: [lecturerId], references: [id])
+  semesterId String
+  semester   Semester @relation(fields: [semesterId], references: [id])
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  timetableSlots  TimetableSlot[]
+  registrations   CourseRegistration[]
+
+  @@unique([courseId, lecturerId, semesterId])
+  @@index([courseId])
+  @@index([lecturerId])
+  @@index([semesterId])
+  @@map("course_assignments")
+}
+
+model CourseRegistration {
+  id                 String           @id @default(cuid())
+  studentId          String
+  student            StudentProfile   @relation(fields: [studentId], references: [id])
+  courseAssignmentId String
+  courseAssignment   CourseAssignment  @relation(fields: [courseAssignmentId], references: [id])
+  isActive           Boolean          @default(true)
+  registeredAt       DateTime         @default(now())
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@unique([studentId, courseAssignmentId])
+  @@index([studentId])
+  @@index([courseAssignmentId])
+  @@map("course_registrations")
+}
+
+// ─── Profiles ─────────────────────────────────────────────────────────────────
+
+model StudentProfile {
+  id            String     @id @default(cuid())
+  userId        String     @unique
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studentNumber String     @unique
+  programmeId   String
+  programme     Programme  @relation(fields: [programmeId], references: [id])
+  yearOfStudy   Int        @default(1)
+  gender        Gender?
+  dateOfBirth   DateTime?
+  nationalId    String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  registrations    CourseRegistration[]
+  attendanceRecords AttendanceRecord[]
+  correctionRequests CorrectionRequest[]
+
+  @@index([studentNumber])
+  @@index([programmeId])
+  @@map("student_profiles")
+}
+
+model LecturerProfile {
+  id              String     @id @default(cuid())
+  userId          String     @unique
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffNumber     String     @unique
+  departmentId    String
+  department      Department @relation(fields: [departmentId], references: [id])
+  title           String?    // Dr., Prof., Mr., Ms., etc.
+  specialization  String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  courseAssignments CourseAssignment[]
+
+  @@index([staffNumber])
+  @@index([departmentId])
+  @@map("lecturer_profiles")
+}
+
+// ─── Timetable & Sessions ─────────────────────────────────────────────────────
+
+model TimetableSlot {
+  id                 String           @id @default(cuid())
+  courseAssignmentId String
+  courseAssignment   CourseAssignment  @relation(fields: [courseAssignmentId], references: [id])
+  dayOfWeek          DayOfWeek
+  startTime          String           // "08:00"
+  endTime            String           // "10:00"
+  room               String
+  building           String?
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  sessions LectureSession[]
+
+  @@index([courseAssignmentId])
+  @@index([dayOfWeek])
+  @@map("timetable_slots")
+}
+
+model LectureSession {
+  id                      String               @id @default(cuid())
+  timetableSlotId         String
+  timetableSlot           TimetableSlot        @relation(fields: [timetableSlotId], references: [id])
+  date                    DateTime             @db.Date
+  status                  LectureSessionStatus @default(SCHEDULED)
+  lecturerCheckInAt       DateTime?
+  lecturerCheckOutAt      DateTime?
+  attendanceWindowMinutes Int                  @default(30)
+  lateThresholdMinutes    Int                  @default(15)
+  notes                   String?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  attendanceRecords AttendanceRecord[]
+  qrTokens          QRToken[]
+
+  @@unique([timetableSlotId, date])
+  @@index([timetableSlotId])
+  @@index([date])
+  @@index([status])
+  @@map("lecture_sessions")
+}
+
+// ─── Attendance ───────────────────────────────────────────────────────────────
+
+model AttendanceRecord {
+  id           String           @id @default(cuid())
+  sessionId    String
+  session      LectureSession   @relation(fields: [sessionId], references: [id])
+  studentId    String
+  student      StudentProfile   @relation(fields: [studentId], references: [id])
+  status       AttendanceStatus @default(PENDING)
+  method       AttendanceMethod @default(QR_CODE)
+  recordedAt   DateTime         @default(now())
+  verifiedAt   DateTime?
+  verifiedById String?
+  verifiedBy   User?            @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  ipAddress    String?
+  userAgent    String?
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  correctionRequests CorrectionRequest[]
+
+  @@unique([sessionId, studentId])
+  @@index([sessionId])
+  @@index([studentId])
+  @@index([status])
+  @@index([recordedAt])
+  @@map("attendance_records")
+}
+
+model QRToken {
+  id                    String         @id @default(cuid())
+  sessionId             String
+  session               LectureSession @relation(fields: [sessionId], references: [id])
+  token                 String         @unique // cryptographic token
+  expiresAt             DateTime
+  isInvalidated         Boolean        @default(false)
+  refreshIntervalSeconds Int            @default(60)
+  createdAt             DateTime       @default(now())
+
+  @@index([token])
+  @@index([sessionId])
+  @@index([expiresAt])
+  @@map("qr_tokens")
+}
+
+model CorrectionRequest {
+  id                 String                  @id @default(cuid())
+  attendanceRecordId String
+  attendanceRecord   AttendanceRecord         @relation(fields: [attendanceRecordId], references: [id])
+  studentId          String
+  student            StudentProfile          @relation(fields: [studentId], references: [id])
+  requestedStatus    AttendanceStatus
+  reason             String
+  supportingEvidence String?                 // file URL or description
+  status             CorrectionRequestStatus @default(PENDING)
+  reviewedById       String?
+  reviewedBy         User?                   @relation("ReviewedBy", fields: [reviewedById], references: [id])
+  reviewedAt         DateTime?
+  reviewNotes        String?
+  createdAt          DateTime                @default(now())
+  updatedAt          DateTime                @updatedAt
+
+  @@index([studentId])
+  @@index([attendanceRecordId])
+  @@index([status])
+  @@map("correction_requests")
+}
+
+// ─── Policies & Configuration ─────────────────────────────────────────────────
+
+model AttendancePolicy {
+  id                       String      @id @default(cuid())
+  departmentId             String?
+  department               Department? @relation(fields: [departmentId], references: [id])
+  minimumAttendancePercent Float       @default(75.0)
+  lateThresholdMinutes     Int         @default(15)
+  attendanceWindowMinutes  Int         @default(30)
+  isDefault                Boolean     @default(false)
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
+
+  @@index([departmentId])
+  @@index([isDefault])
+  @@map("attendance_policies")
+}
+
+model SystemSetting {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  group     String   @default("general")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+  @@index([group])
+  @@map("system_settings")
+}
+
+// ─── Notifications & Audit ────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  isRead    Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String   // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  entity    String   // Table/model name
+  entityId  String?
+  ipAddress String?
+  userAgent String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+

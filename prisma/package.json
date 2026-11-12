@@ -1,0 +1,25 @@
+{
+  "name": "@cavpulse/prisma",
+  "version": "1.0.0",
+  "scripts": {
+    "generate": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "migrate:prod": "prisma migrate deploy",
+    "seed": "ts-node --transpile-only prisma/seed.ts",
+    "studio": "prisma studio",
+    "reset": "prisma migrate reset"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.1.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.1.0",
+    "typescript": "^5.7.2",
+    "ts-node": "^10.9.2",
+    "@types/node": "^22.10.1"
+  },
+  "prisma": {
+    "seed": "ts-node --transpile-only prisma/seed.ts"
+  }
+}
+

@@ -1,0 +1,27 @@
+{
+  "name": "cavpulse",
+  "version": "1.0.0",
+  "description": "CavPulse - Cavendish University Uganda Intelligent Attendance Management System",
+  "private": true,
+  "scripts": {
+    "dev:api": "cd apps/api && npm run dev",
+    "dev:web": "cd apps/web && npm run dev",
+    "start:api": "cd apps/api && npm run start",
+    "start:web": "cd apps/web && npm run start",
+    "build": "cd packages/shared && npm run build && cd ../../apps/api && npm run build && cd ../web && npm run build",
+    "build:api": "cd apps/api && npm run build",
+    "build:web": "cd apps/web && npm run build",
+    "db:push": "cd prisma && npx prisma db push",
+    "db:seed": "cd prisma && npx ts-node --project tsconfig.json seed.ts"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "prisma"
+  ],
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "prettier": "^3.4.2",
+    "@types/node": "^22.10.1"
+  }
+}
