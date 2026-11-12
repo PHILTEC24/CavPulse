@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: cavpulse-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm run build:api
+    startCommand: npm run start:api
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
