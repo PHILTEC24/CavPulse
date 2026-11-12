@@ -27,7 +27,7 @@
     "@nestjs/cache-manager": "^2.3.0",
     "@nestjs/swagger": "^8.1.0",
     "@prisma/client": "^6.1.0",
-    "@cavpulse/shared": "file:../../packages/shared",
+    "@cavpulse/shared": "*",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
